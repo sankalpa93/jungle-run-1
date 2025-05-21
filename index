@@ -1,0 +1,163 @@
+import pygame
+import pytmx
+from pygame import mixer
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+WHITE = (255, 255, 255)
+GREEN = (0, 128, 0)
+
+# Set up the screen
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Jungle Run")
+
+# Load sounds
+mixer.music.load("assets/sounds/background_music.mp3")
+mixer.music.play(-1, 0.0)  # Loop the background music
+jump_sound = mixer.Sound("assets/sounds/jump.wav")
+hit_sound = mixer.Sound("assets/sounds/hit.wav")
+
+# Player class
+class Player(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.image.load("assets/images/player.png").convert_alpha()  # Ensure the image exists
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
+        self.velocity = 5
+        self.is_jumping = False
+        self.jump_speed = 10
+        self.gravity = 0.5
+        self.y_velocity = 0
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= self.velocity
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += self.velocity
+        if keys[pygame.K_UP] and not self.is_jumping:
+            self.is_jumping = True
+            self.y_velocity = -self.jump_speed
+            jump_sound.play()
+
+        if self.is_jumping:
+            self.rect.y += self.y_velocity
+            self.y_velocity += self.gravity
+            if self.rect.y >= 500:  # Ground level
+                self.rect.y = 500
+                self.is_jumping = False
+                self.y_velocity = 0
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+# Enemy class
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.image.load("assets/images/enemy.png").convert_alpha()  # Ensure the image exists
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
+        self.velocity = 2
+
+    def update(self):
+        self.rect.x -= self.velocity
+        if self.rect.x < -50:  # Reset enemy when it moves off screen
+            self.rect.x = 800
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+# Map loading class (Using pytmx)
+def load_map(map_path):
+    tmx_data = pytmx.load_pygame(map_path)
+    return tmx_data
+
+def draw_map(tmx_data, screen):
+    for layer in tmx_data.visible_layers:
+        for x, y, tile in layer:
+            if tile:
+                screen.blit(tmx_data.get_tile_image(tile), (x * tmx_data.tilewidth, y * tmx_data.tileheight))
+
+# Start Menu
+def show_start_menu():
+    font = pygame.font.Font(None, 74)
+    title_text = font.render("Jungle Run", True, WHITE)
+    start_text = font.render("Press Enter to Start", True, WHITE)
+    
+    running = True
+    while running:
+        screen.fill(GREEN)
+        screen.blit(title_text, (250, 150))
+        screen.blit(start_text, (200, 250))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    return True  # Start the game
+
+        pygame.display.flip()
+
+    return False
+
+# Game class
+class Game:
+    def __init__(self):
+        self.clock = pygame.time.Clock()
+        self.player = Player(100, 500)
+        self.enemies = [Enemy(400, 500), Enemy(600, 500)]
+        self.tile_map = load_map("assets/maps/jungle_map.tmx")
+
+        # Group all sprites for easier handling
+        self.all_sprites = pygame.sprite.Group()
+        self.all_sprites.add(self.player)
+        for enemy in self.enemies:
+            self.all_sprites.add(enemy)
+
+    def run(self):
+        running = True
+        while running:
+            screen.fill(GREEN)  # Background color
+            self.handle_events()
+
+            self.update_game_objects()
+            self.draw_game_objects()
+
+            pygame.display.flip()
+            self.clock.tick(FPS)
+
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+    def update_game_objects(self):
+        self.player.update()
+        for enemy in self.enemies:
+            enemy.update()
+
+    def draw_game_objects(self):
+        draw_map(self.tile_map, screen)  # Draw the tile map
+        self.all_sprites.draw(screen)  # Draw all sprites
+
+# Main function
+def main():
+    # Show the start menu
+    if show_start_menu():
+        game = Game()
+        game.run()
+
+    pygame.quit()
+
+if __name__ == "__main__":
+    main()
